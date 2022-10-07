@@ -11,7 +11,7 @@ env:
 jobs:
   check:
     name: Check Signed Tag
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     timeout-minutes: 5
     outputs:
       stringver: ${{ steps.contentrel.outputs.stringver }}
@@ -53,14 +53,18 @@ jobs:
 
   build:
     name: Build Release Binaries
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-20.04
     needs: [check]
     timeout-minutes: 30
 
     strategy:
       matrix:
-        os: [ubuntu-18.04, windows-2019]
-
+        include:
+          # Choose an old release of Ubuntu to avoid glibc issue https://github.com/containerd/containerd/issues/7255
+          - dockerfile-ubuntu: 18.04
+            dockerfile-platform: linux/amd64
+          - dockerfile-ubuntu: 18.04
+            dockerfile-platform: windows/amd64
     steps:
       - name: Install Go
         uses: actions/setup-go@v3
@@ -69,12 +73,12 @@ jobs:
       - name: Set env
         shell: bash
         env:
-          MOS: ${{ matrix.os }}
+          PLATFORM: ${{ matrix.dockerfile-platform }}
         run: |
           releasever=${{ github.ref }}
           releasever="${releasever#refs/tags/}"
           os=linux
-          [[ "${MOS}" =~ "windows" ]] && {
+          [[ "${PLATFORM}" =~ "windows" ]] && {
             os=windows
           }
           echo "RELEASE_VER=${releasever}" >> $GITHUB_ENV
@@ -94,13 +98,13 @@ jobs:
 
       - name: HCS Shim commit
         id: hcsshim_commit
-        if: startsWith(matrix.os, 'windows')
+        if: startsWith(matrix.dockerfile-platform, 'windows')
         shell: bash
         run: echo "::set-output name=sha::$(grep 'Microsoft/hcsshim ' go.mod | awk '{print $2}')"
         working-directory: src/github.com/containerd/containerd
 
       - name: Checkout hcsshim source
-        if: startsWith(matrix.os, 'windows')
+        if: startsWith(matrix.dockerfile-platform, 'windows')
         uses: actions/checkout@v3
         with:
           repository: Microsoft/hcsshim
@@ -128,7 +132,7 @@ jobs:
       - name: Save build binaries
         uses: actions/upload-artifact@v2
         with:
-          name: containerd-binaries-${{ matrix.os }}
+          name: containerd-binaries-${{ matrix.dockerfile-platform }}
           path: src/github.com/containerd/containerd/*.tar.gz*
 
       - name: Make cri-containerd tar
@@ -147,12 +151,12 @@ jobs:
       - name: Save cri-containerd binaries
         uses: actions/upload-artifact@v2
         with:
-          name: cri-containerd-binaries-${{ matrix.os }}
+          name: cri-containerd-binaries-${{ matrix.dockerfile-platform }}
           path: src/github.com/containerd/containerd/releases/cri-containerd-cni-*.tar.gz*
 
   release:
     name: Create containerd Release
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     timeout-minutes: 10
     needs: [build, check]
 
