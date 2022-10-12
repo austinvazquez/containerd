@@ -11,14 +11,14 @@ env:
 jobs:
   check:
     name: Check Signed Tag
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     timeout-minutes: 5
     outputs:
       stringver: ${{ steps.contentrel.outputs.stringver }}
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: ${{ github.ref }}
           path: src/github.com/containerd/containerd
@@ -53,19 +53,21 @@ jobs:
 
   build:
     name: Build Release Binaries
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-20.04
     needs: [check]
     timeout-minutes: 30
 
     strategy:
       matrix:
-        os: [ubuntu-18.04]
-        platform:
-          - linux/amd64
-          - windows/amd64
+        include:
+          # Choose an old release of Ubuntu to avoid glibc issue https://github.com/containerd/containerd/issues/7255
+          - dockerfile-ubuntu: 18.04
+            dockerfile-platform: linux/amd64
+          - dockerfile-ubuntu: 18.04
+            dockerfile-platform: windows/amd64
     steps:
       - name: Install Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Set env
@@ -76,7 +78,7 @@ jobs:
           echo "RELEASE_VER=${releasever}" >> $GITHUB_ENV
           echo "GOPATH=${{ github.workspace }}" >> $GITHUB_ENV
       - name: Checkout containerd
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           # Intentionally use github.repository instead of containerd/containerd to
           # make this action runnable on forks.
@@ -108,7 +110,7 @@ jobs:
           find ./releases/ -maxdepth 1 -type l | xargs rm
         working-directory: src/github.com/containerd/containerd
         env:
-          PLATFORM: ${{ matrix.platform }}
+          PLATFORM: ${{ matrix.dockerfile-platform }}
       - name: Save Artifacts
         uses: actions/upload-artifact@v2
         with:
@@ -117,12 +119,12 @@ jobs:
 
   release:
     name: Create containerd Release
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     timeout-minutes: 10
     needs: [build, check]
     steps:
       - name: Download builds and release notes
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           path: builds
       - name: Catalog build assets for upload
