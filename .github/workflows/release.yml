@@ -18,7 +18,7 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: ${{ github.ref }}
           path: src/github.com/containerd/containerd
@@ -63,7 +63,7 @@ jobs:
 
     steps:
       - name: Install Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: Set env
@@ -83,7 +83,7 @@ jobs:
           echo "${{ github.workspace }}/bin" >> $GITHUB_PATH
 
       - name: Checkout containerd
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           # Intentionally use github.repository instead of containerd/containerd to
           # make this action runnable on forks.
@@ -101,7 +101,7 @@ jobs:
 
       - name: Checkout hcsshim source
         if: startsWith(matrix.os, 'windows')
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           repository: Microsoft/hcsshim
           ref: ${{ steps.hcsshim_commit.outputs.sha }}
@@ -158,7 +158,7 @@ jobs:
 
     steps:
       - name: Download builds and release notes
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           path: builds
       - name: Catalog build assets for upload
