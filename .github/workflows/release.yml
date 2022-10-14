@@ -46,7 +46,7 @@ jobs:
         working-directory: src/github.com/containerd/containerd
 
       - name: Save release notes
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: containerd-release-notes
           path: src/github.com/containerd/containerd/release-notes.md
@@ -128,9 +128,10 @@ jobs:
           tar czf ${TARFILE} bin/
           sha256sum ${TARFILE} >${TARFILE}.sha256sum
         working-directory: src/github.com/containerd/containerd
-
-      - name: Save build binaries
-        uses: actions/upload-artifact@v2
+        env:
+          PLATFORM: ${{ matrix.dockerfile-platform }}
+      - name: Save Artifacts
+        uses: actions/upload-artifact@v3
         with:
           name: containerd-binaries-${{ matrix.dockerfile-platform }}
           path: src/github.com/containerd/containerd/*.tar.gz*
@@ -149,7 +150,7 @@ jobs:
         working-directory: src/github.com/containerd/containerd
 
       - name: Save cri-containerd binaries
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: cri-containerd-binaries-${{ matrix.dockerfile-platform }}
           path: src/github.com/containerd/containerd/releases/cri-containerd-cni-*.tar.gz*
