@@ -94,7 +94,7 @@ func WithMetaStore(ms MetaStore) Opt {
 	}
 }
 
-func WithRemapIds(config *SnapshotterConfig) error {
+func WithRemapIds(config *SnapshotterConfig) error { //nolint:revive // Need to keep naming to maintain package compatibility.
 	config.remapIDs = true
 	return nil
 }
