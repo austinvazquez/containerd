@@ -128,7 +128,7 @@ endif
 #Replaces ":" (*nix), ";" (windows) with newline for easy parsing
 GOPATHS=$(shell $(GO) env GOPATH | tr ":" "\n" | tr ";" "\n")
 
-TESTFLAGS_RACE=
+TESTFLAGS_RACE=-v -race
 GO_BUILD_FLAGS ?=
 # See Golang issue re: '-trimpath': https://github.com/golang/go/issues/13809
 GO_GCFLAGS=$(shell				\
