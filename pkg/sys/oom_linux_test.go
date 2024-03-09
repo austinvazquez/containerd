@@ -54,6 +54,9 @@ func TestSetNegativeOomScoreAdjustmentWhenUnprivilegedHasNoEffect(t *testing.T) 
 		t.Skip("needs to be run as non-root or in user namespace")
 		return
 	}
+	if runningPrivileged() {
+		t.Log("Running privileged")
+	}
 	if b, err := os.ReadFile("/proc/self/oom_score_adj"); err == nil {
 		t.Logf("/proc/self/oom_score_adj: %s", b)
 	}
