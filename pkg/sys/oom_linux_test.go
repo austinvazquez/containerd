@@ -114,13 +114,8 @@ func TestSetNegativeOomScoreAdjustmentWhenUnprivilegedHasNoEffect(t *testing.T) 
 	}
 
 	adjustment, err := GetOOMScoreAdj(pid)
-	if err != nil {
-		t.Fatal(err)
-
-	}
-
 	assert.NoError(t, err)
-	assert.EqualValues(t, adjustment, initial)
+	assert.EqualValues(t, initial, adjustment)
 }
 
 func TestSetOOMScoreBoundaries(t *testing.T) {
