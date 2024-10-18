@@ -140,7 +140,7 @@ configuration is under the `scheduler` plugin.
 
 The default configuration is represented as...
 ```.toml
-version = 2
+version = 3
 [plugins]
   [plugins."io.containerd.gc.v1.scheduler"]
     pause_threshold = 0.02

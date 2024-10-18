@@ -250,10 +250,10 @@ Every plugin can have its own section using the pattern `[plugins."<plugin type>
 
 example configuration
 ```toml
-version = 2
+version = 3
 
 [plugins]
-  [plugins."io.containerd.monitor.v1.cgroups"]
+  [plugins."io.containerd.monitor.task.v1.cgroups"]
     no_prometheus = false
 ```
 
