@@ -1,0 +1,29 @@
+name: Attest 2.0 release
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  attest:
+    name: Attest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+
+    steps:
+      - run: mkdir -p release-artifacts
+      - run: gh repo set-default containerd/containerd
+      - name: Download artifacts
+        run: gh release download v2.0.0 -D ./release-artifacts
+      - name: Attest Artifacts
+        id: attest
+        uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v1.4.4
+        with:
+          subject-path: ./release-artifacts/*.tar.gz
+      - run: mv ${{ steps.attest.outputs.bundle-path }} containerd-2.0.0-attestation.intoto.jsonl
+      - name: Save artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: containerd-2.0-attestation-${{ github.action_ref }}
+          path: ./containerd-2.0.0-attestion.intoto.jsonl
