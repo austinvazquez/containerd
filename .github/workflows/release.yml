@@ -186,7 +186,7 @@ jobs:
       - name: Attest SBOM
         uses: actions/attest-sbom@5026d3663739160db546203eeaffa6aa1c51a4d6 # v1.4.1
         with:
-          subject-path: builds/release-tars-**/*
+          subject-path: ./builds/release-tars-**/*
           sbom-path: ./builds/containerd-${{ needs.check.outputs.stringver }}-sbom.json
       - name: Create Release
         uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
