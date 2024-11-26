@@ -142,6 +142,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [build, check]
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Download builds and release notes
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
@@ -154,6 +156,15 @@ jobs:
           subject-path: ./builds/release-tars-**/*.tar.gz
       - name: Rename attestation artifact
         run: mv ${{ steps.attest.outputs.bundle-path }} containerd-${{ needs.check.outputs.stringver }}-attestation.intoto.jsonl
+      - name: Create SBOM
+        run: |
+          gh ext install advanced-security/gh-sbom
+          gh sbom | jq > containerd-${{ needs.check.outputs.stringver }}-sbom.json
+      - name: Attest SBOM
+        uses: actions/attest-sbom@5026d3663739160db546203eeaffa6aa1c51a4d6 # v1.4.1
+        with:
+          subject-path: builds/release-tars-**/*
+          sbom-path: ./containerd-${{ needs.check.outputs.stringver }}-sbom.json
       - name: Create Release
         uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
         with:
@@ -166,4 +177,5 @@ jobs:
           files: |
             builds/release-tars-**/*
             containerd-*-attestation.intoto.jsonl
+            containerd-*-sbom.json
           make_latest: false
