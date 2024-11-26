@@ -159,7 +159,7 @@ jobs:
       - name: Create SBOM
         run: |
           gh ext install advanced-security/gh-sbom
-          gh sbom | jq > containerd-${{ needs.check.outputs.stringver }}-sbom.json
+          gh sbom > containerd-${{ needs.check.outputs.stringver }}-sbom.json
       - name: Attest SBOM
         uses: actions/attest-sbom@5026d3663739160db546203eeaffa6aa1c51a4d6 # v1.4.1
         with:
