@@ -158,7 +158,7 @@ jobs:
       - name: Save Artifacts
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: containerd-${{ needs.check.outputs.stringver }}-sbom.json
+          name: containerd-${{ needs.check.outputs.stringver }}-sbom.spdx.json
           path: src/github.com/containerd/containerd/sbom.json
 
   release:
@@ -187,7 +187,7 @@ jobs:
         uses: actions/attest-sbom@5026d3663739160db546203eeaffa6aa1c51a4d6 # v1.4.1
         with:
           subject-path: ./builds/release-tars-**/*
-          sbom-path: ./builds/containerd-${{ needs.check.outputs.stringver }}-sbom.json
+          sbom-path: ./builds/containerd-${{ needs.check.outputs.stringver }}-sbom.spdx.json
       - name: Create Release
         uses: softprops/action-gh-release@01570a1f39cb168c169c802c3bceb9e93fb10974 # v2.1.0
         with:
@@ -200,5 +200,5 @@ jobs:
           files: |
             builds/release-tars-**/*
             containerd-*-attestation.intoto.jsonl
-            containerd-*-sbom.json
+            containerd-*-sbom.spdx.json
           make_latest: false
