@@ -184,7 +184,7 @@ jobs:
       - name: Rename attestation artifact
         run: mv ${{ steps.attest.outputs.bundle-path }} containerd-${{ needs.check.outputs.stringver }}-attestation.intoto.jsonl
       - name: Unpack software bill of materials
-        run: unzip -d builds ./builds/software-bill-of-materials.zip
+        run: unzip -d builds ./builds/software-bill-of-materials
       - name: Attest SBOM
         uses: actions/attest-sbom@5026d3663739160db546203eeaffa6aa1c51a4d6 # v1.4.1
         with:
