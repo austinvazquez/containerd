@@ -151,15 +151,15 @@ jobs:
       - name: Create SBOM
         run: |
           gh ext install advanced-security/gh-sbom
-          gh sbom | jq > containerd-${{ needs.check.outputs.stringver }}.spdx.json
+          gh sbom | jq > sbom.spdx.json
         working-directory: src/github.com/containerd/containerd
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Save Artifacts
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: software-bill-of-materials
-          path: src/github.com/containerd/containerd/containerd-${{ needs.check.outputs.stringver }}.spdx.json
+          name: containerd-${{ needs.check.outputs.stringver }}.spdx.json
+          path: src/github.com/containerd/containerd/sbom.spdx.json
 
   release:
     name: Create containerd Release
@@ -176,6 +176,7 @@ jobs:
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
           path: builds
+      - run: ls -al . && ls -al builds/
       - name: Attest Artifacts
         id: attest
         uses: actions/attest-build-provenance@ef244123eb79f2f7a7e75d99086184180e6d0018 # v1.4.4
@@ -183,8 +184,6 @@ jobs:
           subject-path: ./builds/release-tars-**/*.tar.gz
       - name: Rename attestation artifact
         run: mv ${{ steps.attest.outputs.bundle-path }} containerd-${{ needs.check.outputs.stringver }}-attestation.intoto.jsonl
-      - name: Unpack software bill of materials
-        run: unzip -d builds ./builds/software-bill-of-materials
       - name: Attest SBOM
         uses: actions/attest-sbom@5026d3663739160db546203eeaffa6aa1c51a4d6 # v1.4.1
         with:
