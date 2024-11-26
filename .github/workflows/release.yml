@@ -200,6 +200,6 @@ jobs:
           body_path: ./builds/containerd-release-notes/release-notes.md
           files: |
             builds/release-tars-**/*
+            builds/software-bill-of-materials/containerd-*-sbom.spdx.json
             containerd-*-attestation.intoto.jsonl
-            containerd-*-sbom.spdx.json
           make_latest: false
