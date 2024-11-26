@@ -151,15 +151,15 @@ jobs:
       - name: Create SBOM
         run: |
           gh ext install advanced-security/gh-sbom
-          gh sbom | jq > containerd-${{ needs.check.outputs.stringver }}-sbom.json
+          gh sbom | jq > sbom.json
         working-directory: src/github.com/containerd/containerd
         env:
           GH_TOKEN: ${{ github.token }}
       - name: Save Artifacts
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: sbom
-          path: src/github.com/containerd/containerd/containerd-${{ needs.check.outputs.stringver }}-sbom.json
+          name: containerd-${{ needs.check.outputs.stringver }}-sbom.json
+          path: src/github.com/containerd/containerd/sbom.json
 
   release:
     name: Create containerd Release
