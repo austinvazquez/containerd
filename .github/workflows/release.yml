@@ -98,8 +98,8 @@ jobs:
           # Intentionally use github.repository instead of containerd/containerd to
           # make this action runnable on forks.
           # See https://github.com/containerd/containerd/issues/5098 for the context.
-          repository: ${{ github.repository }}
-          ref: ${{ github.ref }}
+          repository: containerd/containerd
+          ref: v2.0.0
           path: src/github.com/containerd/containerd
 
       - name: Setup buildx instance
