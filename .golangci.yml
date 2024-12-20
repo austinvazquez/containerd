@@ -93,3 +93,4 @@ run:
     - releases
     - reports
     - test # e2e scripts
+    - vendor
