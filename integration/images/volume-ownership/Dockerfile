@@ -12,7 +12,7 @@
 #   See the License for the specific language governing permissions and
 #   limitations under the License.
 
-FROM ubuntu
+FROM ubuntu@sha256:278628f08d4979fb9af9ead44277dbc9c92c2465922310916ad0c46ec9999295
 RUN mkdir -p /test_dir && \
     chown -R nobody:nogroup /test_dir
 # NOTE: The volume is required by ../../container_volume_linux_test.go#TestRunContainerWithVolatileOption.
