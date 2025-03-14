@@ -23,3 +23,13 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 10
+  - package-ecosystem: "docker"
+    directory: "/.devcontainer"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+  - package-ecosystem: "docker"
+    directory: "/integration/images"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
