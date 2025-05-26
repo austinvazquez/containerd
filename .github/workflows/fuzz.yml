@@ -8,7 +8,6 @@ jobs:
   # Others use https://github.com/AdaLogics/go-fuzz-headers.
   ci_fuzz:
     name: CI Fuzz
-    if: github.repository == 'containerd/containerd'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -25,18 +24,11 @@ jobs:
         fuzz-seconds: 300
         language: go
       continue-on-error: true
-    - name: Upload Crash
-      uses: actions/upload-artifact@v4
-      if: failure() && steps.build.outcome == 'success'
-      with:
-        name: artifacts
-        path: ./out/artifacts
 
   # Make sure all fuzzing tests which use Go 1.18's testing.F are
   # runnable with go test -fuzz.
   go_test_fuzz:
     name : go test -fuzz
-    if: github.repository == 'containerd/containerd'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
