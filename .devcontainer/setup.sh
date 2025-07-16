@@ -31,3 +31,6 @@ script/setup/install-protobuf \
 
 make binaries GO_BUILD_FLAGS="-mod=vendor"
 sudo -E PATH=$PATH make install
+
+# Enable bash completion
+echo \"source /usr/share/bash-completion/completions/git\" >> ~/.bashrc
