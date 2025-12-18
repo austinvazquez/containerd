@@ -29,6 +29,11 @@ import (
 	nri "github.com/containerd/nri/pkg/api"
 )
 
+const (
+	// UnlimitedPidsLimit indicates unlimited Linux PIDs limit.
+	UnlimitedPidsLimit = -1
+)
+
 // GeneratorOption is an option for Generator().
 type GeneratorOption func(*Generator)
 
@@ -110,6 +115,7 @@ func (g *Generator) Adjust(adjust *nri.ContainerAdjustment) error {
 		return fmt.Errorf("failed to adjust annotations in OCI Spec: %w", err)
 	}
 	g.AdjustEnv(adjust.GetEnv())
+	g.AdjustArgs(adjust.GetArgs())
 	g.AdjustHooks(adjust.GetHooks())
 	if err := g.InjectCDIDevices(adjust.GetCDIDevices()); err != nil {
 		return err
@@ -117,6 +123,14 @@ func (g *Generator) Adjust(adjust *nri.ContainerAdjustment) error {
 	g.AdjustDevices(adjust.GetLinux().GetDevices())
 	g.AdjustCgroupsPath(adjust.GetLinux().GetCgroupsPath())
 	g.AdjustOomScoreAdj(adjust.GetLinux().GetOomScoreAdj())
+	g.AdjustIOPriority(adjust.GetLinux().GetIoPriority())
+
+	if err := g.AdjustSeccompPolicy(adjust.GetLinux().GetSeccompPolicy()); err != nil {
+		return err
+	}
+	if err := g.AdjustNamespaces(adjust.GetLinux().GetNamespaces()); err != nil {
+		return err
+	}
 
 	resources := adjust.GetLinux().GetResources()
 	if err := g.AdjustResources(resources); err != nil {
@@ -176,6 +190,13 @@ func (g *Generator) AdjustEnv(env []*nri.KeyValue) {
 		if _, ok := mod[e.Key]; ok {
 			g.AddProcessEnv(e.Key, e.Value)
 		}
+	}
+}
+
+// AdjustArgs adjusts the process arguments in the OCI Spec.
+func (g *Generator) AdjustArgs(args []string) {
+	if len(args) != 0 {
+		g.SetProcessArgs(args)
 	}
 }
 
@@ -268,6 +289,9 @@ func (g *Generator) AdjustResources(r *nri.LinuxResources) error {
 	if v := r.GetPids(); v != nil {
 		g.SetLinuxResourcesPidsLimit(v.GetLimit())
 	}
+	for _, d := range r.Devices {
+		g.AddLinuxResourcesDevice(d.Allow, d.Type, d.Major.Get(), d.Minor.Get(), d.Access)
+	}
 	if g.checkResources != nil {
 		if err := g.checkResources(g.Config.Linux.Resources); err != nil {
 			return fmt.Errorf("failed to adjust resources in OCI Spec: %w", err)
@@ -332,6 +356,69 @@ func (g *Generator) AdjustOomScoreAdj(score *nri.OptionalInt) {
 	}
 }
 
+// AdjustIOPriority adjusts the IO priority of the container.
+func (g *Generator) AdjustIOPriority(ioprio *nri.LinuxIOPriority) {
+	if ioprio != nil {
+		g.SetProcessIOPriority(ioprio.ToOCI())
+	}
+}
+
+// AdjustSeccompPolicy adjusts the seccomp policy for the container, which may
+// override kubelet's settings for the seccomp policy.
+func (g *Generator) AdjustSeccompPolicy(policy *nri.LinuxSeccomp) error {
+	if policy == nil {
+		return nil
+	}
+
+	// Note: we explicitly do not use the SetDefaultSeccompAction() and
+	// SetSeccompArchitecture() helpers from generate here, because they
+	// expect a "humanized" version of the action (e.g. "allow" or "x86").
+	// since these helpers do not exist for the below, we would be
+	// inconsistent: here we would want the humanized strings, in favor of
+	// the rspec definitions like SCMP_ACT_ALLOW. let's just use the rspec
+	// versions everywhere since helpers don't exist in runtime-tools for
+	// setting actual syscall policies, only default actions.
+	archs := make([]rspec.Arch, len(policy.Architectures))
+	for i, arch := range policy.Architectures {
+		archs[i] = rspec.Arch(arch)
+	}
+
+	flags := make([]rspec.LinuxSeccompFlag, len(policy.Flags))
+	for i, f := range policy.Flags {
+		flags[i] = rspec.LinuxSeccompFlag(f)
+	}
+
+	g.Config.Linux.Seccomp = &rspec.LinuxSeccomp{
+		DefaultAction:    rspec.LinuxSeccompAction(policy.DefaultAction),
+		Architectures:    archs,
+		ListenerPath:     policy.ListenerPath,
+		ListenerMetadata: policy.ListenerMetadata,
+		Flags:            flags,
+		Syscalls:         nri.ToOCILinuxSyscalls(policy.Syscalls),
+	}
+
+	return nil
+}
+
+// AdjustNamespaces adds or replaces namespaces in the OCI Spec.
+func (g *Generator) AdjustNamespaces(namespaces []*nri.LinuxNamespace) error {
+	for _, n := range namespaces {
+		if n == nil {
+			continue
+		}
+		if key, marked := n.IsMarkedForRemoval(); marked {
+			if err := g.RemoveLinuxNamespace(key); err != nil {
+				return err
+			}
+		} else {
+			if err := g.AddOrReplaceLinuxNamespace(n.Type, n.Path); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // AdjustDevices adjusts the (Linux) devices in the OCI Spec.
 func (g *Generator) AdjustDevices(devices []*nri.LinuxDevice) {
 	for _, d := range devices {
@@ -363,6 +450,7 @@ func (g *Generator) InjectCDIDevices(devices []*nri.CDIDevice) error {
 	return g.injectCDIDevices(g.Config, names)
 }
 
+// AdjustRlimits adjusts the (Linux) POSIX resource limits in the OCI Spec.
 func (g *Generator) AdjustRlimits(rlimits []*nri.POSIXRlimit) error {
 	for _, l := range rlimits {
 		if l == nil {
@@ -422,15 +510,15 @@ func (g *Generator) AdjustMounts(mounts []*nri.Mount) error {
 
 // sortMounts sorts the mounts in the generated OCI Spec.
 func (g *Generator) sortMounts() {
-	mounts := g.Generator.Mounts()
-	g.Generator.ClearMounts()
+	mounts := g.Mounts()
+	g.ClearMounts()
 	sort.Sort(orderedMounts(mounts))
 
 	// TODO(klihub): This is now a bit ugly maybe we should introduce a
 	// SetMounts([]rspec.Mount) to runtime-tools/generate.Generator. That
 	// could also take care of properly sorting the mount slice.
 
-	g.Generator.Config.Mounts = mounts
+	g.Config.Mounts = mounts
 }
 
 // orderedMounts defines how to sort an OCI Spec Mount slice.
@@ -519,9 +607,40 @@ func (g *Generator) SetLinuxResourcesBlockIO(blockIO *rspec.LinuxBlockIO) {
 	g.Config.Linux.Resources.BlockIO = blockIO
 }
 
+// SetProcessIOPriority sets the (Linux) IO priority of the container.
+func (g *Generator) SetProcessIOPriority(ioprio *rspec.LinuxIOPriority) {
+	g.initConfigProcess()
+	if ioprio != nil && ioprio.Class == "" {
+		ioprio = nil
+	}
+	g.Config.Process.IOPriority = ioprio
+}
+
+// SetLinuxResourcesPidsLimit sets Linux PID limit. Starting with
+// v1.3.0 opencontainers/runtime-spec switched the PID limit to
+// *int64 from int64 with nil meaning "unlimited". We don't want
+// to change our API types though, so instead we use a dedicated
+// value for unlimited.
+func (g *Generator) SetLinuxResourcesPidsLimit(limit int64) {
+	g.initConfigLinuxResources()
+	if g.Config.Linux.Resources.Pids == nil {
+		g.Config.Linux.Resources.Pids = &rspec.LinuxPids{}
+	}
+	if limit > UnlimitedPidsLimit {
+		g.Config.Linux.Resources.Pids.Limit = &limit
+	}
+}
+
 func (g *Generator) initConfig() {
 	if g.Config == nil {
 		g.Config = &rspec.Spec{}
+	}
+}
+
+func (g *Generator) initConfigProcess() {
+	g.initConfig()
+	if g.Config.Process == nil {
+		g.Config.Process = &rspec.Process{}
 	}
 }
 
