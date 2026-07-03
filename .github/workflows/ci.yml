@@ -304,7 +304,7 @@ jobs:
           CGO_ENABLED: 1
           GOTESTSUM_JUNITFILE: ${{github.workspace}}/test-unit-root.xml
           GOTESTSUM_JSONFILE: ${{github.workspace}}/test-unit-root-gotest.json
-        run: mingw32-make.exe test root-test
+        run: mingw32-make.exe test root-test TESTFLAGS_RACE=-race
       - run: if [ -f *-gotest.json ]; then echo '# Root Test' >> $GITHUB_STEP_SUMMARY; teststat -markdown *-gotest.json >> $GITHUB_STEP_SUMMARY; fi
         if: always()
       - run: script/test/test2annotation.sh ${TESTFILE}
@@ -478,8 +478,8 @@ jobs:
         run: |
           # Prevent udevd worker exhaustion on larger runners caused by parallel loopback creations.
           sudo udevadm control --children-max=500
-          make test
-          sudo -E PATH=$PATH make root-test
+          make test TESTFLAGS_RACE=-race
+          sudo -E PATH=$PATH make root-test TESTFLAGS_RACE=-race
       - run: if [ -f *-gotest.json ]; then echo '# Root Test' >> $GITHUB_STEP_SUMMARY; teststat -markdown *-gotest.json >> $GITHUB_STEP_SUMMARY; fi
         if: always()
       - run: script/test/test2annotation.sh *-gotest.json
@@ -760,7 +760,7 @@ jobs:
         env:
           GOTESTSUM_JUNITFILE: "${{ github.workspace }}/macos-test-junit.xml"
           GOTESTSUM_JSONFILE: "${{ github.workspace }}/macos-test-gotest.json"
-        run: make test
+        run: make test TESTFLAGS_RACE=-race
       - run: if [ -f *-gotest.json ]; then echo '# Unit Tests' >> $GITHUB_STEP_SUMMARY; teststat -markdown *-gotest.json >> $GITHUB_STEP_SUMMARY; fi
         if: always()
       - run: script/test/test2annotation.sh *-gotest.json
