@@ -20,8 +20,10 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
+	"unsafe"
 
 	"github.com/Microsoft/go-winio"
 	"golang.org/x/sys/windows"
@@ -104,8 +106,9 @@ func TestCreateUnixSocketOverDirectory(t *testing.T) {
 	}
 }
 
-// TestCreateUnixSocketDACL verifies that only Builtin Administrators and Local
-// System can reach the socket, which is root-equivalent.
+// TestCreateUnixSocketDACL verifies that only Builtin Administrators, Local
+// System and the user running containerd can reach the socket, which is
+// root-equivalent.
 func TestCreateUnixSocketDACL(t *testing.T) {
 	sockPath := filepath.Join(shortTempDir(t), "test.sock")
 
@@ -115,34 +118,92 @@ func TestCreateUnixSocketDACL(t *testing.T) {
 	}
 	defer l.Close()
 
-	sd, err := windows.GetNamedSecurityInfo(sockPath, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	checkDACL(t, sockPath, expectedTrustees(t))
+}
+
+// TestCreateUnixSocketParentDACL verifies that a parent directory created for
+// the socket admits the user running containerd, which could otherwise not
+// traverse it to reach the socket when running non-elevated.
+func TestCreateUnixSocketParentDACL(t *testing.T) {
+	dir := filepath.Join(shortTempDir(t), "state")
+
+	l, err := createUnixSocket(filepath.Join(dir, "test.sock"))
 	if err != nil {
-		t.Fatalf("GetNamedSecurityInfo(%q) failed: %v", sockPath, err)
+		t.Fatalf("createUnixSocket failed: %v", err)
+	}
+	defer l.Close()
+
+	checkDACL(t, dir, expectedTrustees(t))
+}
+
+// expectedTrustees returns the SIDs the socket and its created parent must
+// grant: Builtin Administrators, Local System and, unless that is who runs the
+// test, the process user.
+func expectedTrustees(t *testing.T) []*windows.SID {
+	t.Helper()
+
+	var trustees []*windows.SID
+	for _, wk := range []windows.WELL_KNOWN_SID_TYPE{windows.WinBuiltinAdministratorsSid, windows.WinLocalSystemSid} {
+		sid, err := windows.CreateWellKnownSid(wk)
+		if err != nil {
+			t.Fatalf("CreateWellKnownSid(%d) failed: %v", wk, err)
+		}
+		trustees = append(trustees, sid)
+	}
+	user, err := windows.GetCurrentProcessToken().GetTokenUser()
+	if err != nil {
+		t.Fatalf("GetTokenUser failed: %v", err)
+	}
+	if !user.User.Sid.IsWellKnown(windows.WinLocalSystemSid) {
+		trustees = append(trustees, user.User.Sid)
+	}
+	return trustees
+}
+
+// checkDACL verifies that path has a non-NULL DACL holding exactly one
+// access-allowed ACE per trustee, protected from inheritance so the parent
+// cannot widen access.
+func checkDACL(t *testing.T, path string, trustees []*windows.SID) {
+	t.Helper()
+
+	sd, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.DACL_SECURITY_INFORMATION)
+	if err != nil {
+		t.Fatalf("GetNamedSecurityInfo(%q) failed: %v", path, err)
 	}
 
-	// Protected, or ACEs inherited from the parent could widen access.
 	control, _, err := sd.Control()
 	if err != nil {
 		t.Fatalf("Control failed: %v", err)
 	}
 	if control&windows.SE_DACL_PROTECTED == 0 {
-		t.Errorf("DACL is not protected: control = %#x, sd = %q", control, sd)
+		t.Errorf("DACL of %q is not protected: control = %#x, sd = %q", path, control, sd)
 	}
 
-	// Exactly the two ACEs of the SDDL.
 	dacl, _, err := sd.DACL()
 	if err != nil {
 		t.Fatalf("DACL failed: %v", err)
 	}
 	if dacl == nil {
-		t.Fatal("socket has a NULL DACL, which grants everyone full access")
+		t.Fatalf("%q has a NULL DACL, which grants everyone full access", path)
 	}
-	if dacl.AceCount != 2 {
-		t.Errorf("DACL has %d ACEs, want 2: %q", dacl.AceCount, sd)
+	if int(dacl.AceCount) != len(trustees) {
+		t.Errorf("DACL of %q has %d ACEs, want %d: %q", path, dacl.AceCount, len(trustees), sd)
 	}
-	for _, sid := range []string{";;;BA)", ";;;SY)"} {
-		if !strings.Contains(sd.String(), sid) {
-			t.Errorf("DACL %q is missing an ACE for %q", sd, sid)
+	var granted []*windows.SID
+	for i := range uint32(dacl.AceCount) {
+		var ace *windows.ACCESS_ALLOWED_ACE
+		if err := windows.GetAce(dacl, i, &ace); err != nil {
+			t.Fatalf("GetAce(%d) failed: %v", i, err)
+		}
+		if ace.Header.AceType != windows.ACCESS_ALLOWED_ACE_TYPE {
+			t.Errorf("ACE %d of %q has type %d, want access-allowed: %q", i, path, ace.Header.AceType, sd)
+			continue
+		}
+		granted = append(granted, (*windows.SID)(unsafe.Pointer(&ace.SidStart)))
+	}
+	for _, trustee := range trustees {
+		if !slices.ContainsFunc(granted, trustee.Equals) {
+			t.Errorf("DACL %q of %q is missing an ACE for %s", sd, path, trustee)
 		}
 	}
 }
